@@ -24,11 +24,11 @@ jobs:
           EOF
           )
 
-          # Combine prompts into a single payload
+          # Combine prompts into single clean payload structures
           PROMPT_TEXT="New issue was opened by $ISSUE_USER\nTitle: $ISSUE_TITLE\nBody:\n---\n$ISSUE_BODY\n---"
           SYSTEM_PROMPT="You are a GitHub issue assistant. Your task is to analyze newly opened issues for completeness.\n\nProvide concise, helpful suggestions, ask clarifying questions and identify any missing information that would help resolve the issue faster.\n\nAlways respond with ready-to-use markdown content (no code blocks) that can be posted directly as an issue comment.\n\nSign off as AI assistant."
 
-          # Post directly to the GitHub Models endpoint
+          # Post directly to the production GitHub Models endpoint
           RESPONSE=$(curl -s -X POST "https://azure.com" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Content-Type: application/json" \
@@ -45,15 +45,23 @@ jobs:
                 temperature: 0.5
               }')")
 
-          # Parse response and export safely as a multiline output
-          ANALYSIS=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          # Safely parse response content
+          ANALYSIS=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
           
+          # Fallback mechanism if the model API failed or returned an unexpected format
+          if [ -z "$ANALYSIS" ] || [ "$ANALYSIS" = "null" ]; then
+            echo "API Response error or parsed payload was empty. Raw output logs:"
+            echo "$RESPONSE"
+            ANALYSIS="⚠️ **AI Assistant Warning:** Could not automatically process this issue's completeness assessment at this time due to an upstream API payload error."
+          fi
+
+          # Output assignment using standard multi-line heredocs syntax
           echo "analysis_result<<EOF" >> $GITHUB_OUTPUT
           echo "$ANALYSIS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Comment results on the issue
-        uses: peter-evans/create-or-update-comment@v4
+        uses: peter-evans/create-or-update-comment@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           issue-number: ${{ github.event.issue.number }}

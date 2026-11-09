@@ -10,17 +10,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: AI Inference
+      - name: Fetch AI Response via curl
         id: ai-response
-        uses: actions/ai-inference@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          system-prompt: "You are a casual joker. Output plain text only. Do not output JSON."
-          prompt: |
-            Give me a programming joke.
+        run: |
+          # Call the GitHub Marketplace Models API directly
+          RESPONSE=$(curl -s -X POST "https://azure.com" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "gpt-4o-mini",
+              "messages": [
+                {"role": "user", "content": "Give me a programming joke."}
+              ],
+              "temperature": 0.7
+            }')
+
+          # Extract only the content string using jq, handling newlines cleanly
+          JOKE=$(echo "$RESPONSE" | jq -r '.choices[0].message.content')
+          
+          # Use an environment file to safely pass multiline text between steps
+          echo "JOKE_TEXT<<EOF" >> $GITHUB_ENV
+          echo "$JOKE" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Display AI Response
         run: |
           echo "## 🤖 AI Response" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.ai-response.outputs.response }}" >> $GITHUB_STEP_SUMMARY
+          echo "$JOKE_TEXT" >> $GITHUB_STEP_SUMMARY

@@ -15,6 +15,7 @@ jobs:
         uses: actions/ai-inference@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          system-prompt: "You are a casual joker. Output plain text only. Do not output JSON."
           prompt: |
             Give me a programming joke.
 
